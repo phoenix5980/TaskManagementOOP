@@ -1,21 +1,26 @@
 import java.awt.*;
+import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.*;
 
 public class TaskManagementApp {
+    private static List<Task> tasks = new ArrayList<>();
+    private static List<Reward> rewards = new ArrayList<>();
+    private static Points pointTotal = new Points();
+    private static JPanel todoPanel;
     private static JFrame frame;
     private static JList<String> taskList = new JList<>(new DefaultListModel<>());
-    private static JList<String> historyList = new JList<>(new DefaultListModel<>());
     private static JList<String> rewardList = new JList<>(new DefaultListModel<>());
+    private static JList<String> historyList = new JList<>(new DefaultListModel<>());
     private static JList<String> rewardHistoryList = new JList<>(new DefaultListModel<>());
-    private static JPanel todoPanel; //
     private static JLabel pointTotalLabel = new JLabel("Point Total: 0");
-    private static int pointTotal = 0;
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(TaskManagementApp::initializeUI);
@@ -23,21 +28,22 @@ public class TaskManagementApp {
 
     private static void initializeUI() {
         frame = new JFrame("Task Management System");
-        frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(600, 500);
         frame.setLayout(new BorderLayout());
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent windowEvent) {
                 try {
-                    DataManagement.saveData(taskList, historyList, rewardList, rewardHistoryList, pointTotal, frame);
+                    DataManagement.saveData(tasks, rewards, pointTotal, historyList, rewardHistoryList);
                     System.exit(0);
                 } catch (Exception e) {
                     JOptionPane.showMessageDialog(frame, "Error saving data: " + e.getMessage());
                 }
             }
         });
-
+        JScrollPane scrollPane = new JScrollPane(taskList);
+        frame.add(scrollPane, BorderLayout.CENTER);
         setupTabs();
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.add(pointTotalLabel, BorderLayout.WEST);
@@ -52,17 +58,28 @@ public class TaskManagementApp {
         tabbedPane.addTab("To Do List", createToDoListPanel());
         tabbedPane.addTab("Task History", createTaskHistoryPanel());
         tabbedPane.addTab("Rewards", createRewardsPanel());
-        frame.add(tabbedPane, BorderLayout.CENTER);
+        frame.add(tabbedPane, BorderLayout.CENTER);   
+        // Add a change listener to refresh the display when the tab is switched
+        tabbedPane.addChangeListener(e -> {
+            updateTaskListDisplay();  // Ensure tasks are correctly displayed when tabs are switched
+            updatePointsDisplay();    // Ensure points are updated as well
+        });
     }
-
+    
     private static void loadData() {
         try {
-            DataManagement.loadData(taskList, historyList, rewardList, rewardHistoryList, pointTotalLabel);
-        } catch (Exception e) {
+            DataManagement.loadData(tasks, rewards, pointTotal, historyList, rewardHistoryList);
+            updateTaskListDisplay();
+            updateRewardListDisplay();
+            updatePointsDisplay();
+        } catch (IOException e) {
             JOptionPane.showMessageDialog(frame, "Error loading data: " + e.getMessage());
         }
     }
-
+    
+    private static void updatePointsDisplay() {
+        pointTotalLabel.setText("Point Total: " + pointTotal.getTotalPoints());
+    }
     private static JPanel createToDoListPanel() {
         JPanel panel = new JPanel(new BorderLayout());
     
@@ -93,19 +110,14 @@ public class TaskManagementApp {
         JSpinner dateSpinner = new JSpinner(new SpinnerDateModel());
         dateSpinner.setEditor(new JSpinner.DateEditor(dateSpinner, "dd/MM/yyyy HH:mm:ss"));
         JTextField pointsField = new JTextField();
-    
+        
         JCheckBox isRepetitive = new JCheckBox("Repetitive");
         JComboBox<String> repeatOptions = new JComboBox<>(new String[]{"None", "Daily", "Weekly", "Monthly", "Custom"});
         repeatOptions.setEnabled(false);  // Initially disabled
-    
+        
         // Only enable repetition options if the checkbox is checked
         isRepetitive.addActionListener(e -> repeatOptions.setEnabled(isRepetitive.isSelected()));
-        isRepetitive.addItemListener(e -> {
-            if (!isRepetitive.isSelected()) {
-                repeatOptions.setSelectedItem("None");  // Default to "None" if not repetitive
-            }
-        });
-    
+        
         taskInputPanel.add(new JLabel("Description:"));
         taskInputPanel.add(descField);
         taskInputPanel.add(new JLabel("Deadline:"));
@@ -114,15 +126,29 @@ public class TaskManagementApp {
         taskInputPanel.add(pointsField);
         taskInputPanel.add(isRepetitive);
         taskInputPanel.add(repeatOptions);
-    
+        
         int result = JOptionPane.showConfirmDialog(null, taskInputPanel, "Enter Task Details", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
-            String repetition = isRepetitive.isSelected() ? " - Repeats: " + repeatOptions.getSelectedItem() : " - Repeats: None";
-            String taskEntry = descField.getText() + " - Deadline: " + new SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(dateSpinner.getValue()) + " - Points: " + pointsField.getText() + repetition;
-            ((DefaultListModel<String>) taskList.getModel()).addElement(taskEntry);
+            String description = descField.getText();
+            Date dueDate = (Date) dateSpinner.getValue();
+            int points = Integer.parseInt(pointsField.getText());
+            boolean repetitive = isRepetitive.isSelected();
+            String repeatFreq = repetitive ? repeatOptions.getSelectedItem().toString() : "None";
+            
+            // Create the task object
+            Task newTask = new Task(description, description, dueDate, points, repetitive, repeatFreq);
+            tasks.add(newTask);  // Add to the tasks list
+            
+            updateTaskListDisplay();
         }
     }
-
+    private static void updateTaskListDisplay() {
+        DefaultListModel<String> taskListModel = (DefaultListModel<String>) taskList.getModel();
+        taskListModel.clear();
+        for (Task task : tasks) {
+            taskListModel.addElement(task.displayTaskDetails());
+        }
+    }
     private static void completeTask() {
         int selectedIndex = taskList.getSelectedIndex();
         if (selectedIndex == -1) {
@@ -140,15 +166,15 @@ public class TaskManagementApp {
             if (matcher.find()) {
                 int points = Integer.parseInt(matcher.group(1));
                 String repeats = matcher.group(2);
-                pointTotal += points;
-                pointTotalLabel.setText("Point Total: " + pointTotal);
+                pointTotal.addPoints(points);
+                pointTotalLabel.setText("Point Total: " + pointTotal.getTotalPoints());
     
                 // Remove repetition info for history
                 String taskForHistory = task.replaceAll(" - Repeats: \\w+", "") + " - Completed: " + completionTime;
                 ((DefaultListModel<String>) historyList.getModel()).addElement(taskForHistory);
-    
+                Task completedTask = tasks.get(selectedIndex);
                 // Check if the task is repetitive and ask for confirmation
-                if (!"None".equals(repeats)) {
+                if (completedTask.isRepetitive()) {
                     int response = JOptionPane.showConfirmDialog(frame, "Keep this task repeating?", "Repetitive Task", JOptionPane.YES_NO_OPTION);
                     if (response == JOptionPane.YES_OPTION) {
                         // Only modify deadline part
@@ -156,7 +182,11 @@ public class TaskManagementApp {
                         String newDeadline = " - Deadline: " + dateFormat.format(nextDate);
                         String newTask = task.substring(0, task.indexOf(" - Deadline:")) + newDeadline + task.substring(task.indexOf(" - Points:"));
                         ((DefaultListModel<String>) taskList.getModel()).addElement(newTask);
+                    }else{
+                        tasks.remove(completedTask);
                     }
+                }else{
+                    tasks.remove(completedTask);
                 }
     
                 ((DefaultListModel<String>) taskList.getModel()).remove(selectedIndex);
@@ -217,23 +247,32 @@ public class TaskManagementApp {
     
         return panel;
     }
-private static void deleteSelectedTask(JList<String> list) {
-    int selectedIndex = list.getSelectedIndex();
-    if (selectedIndex != -1) {
-        // Show confirmation dialog
-        int response = JOptionPane.showConfirmDialog(frame,
-                "Are you sure you want to delete this?",
-                "Confirm Deletion",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE);
-
-        if (response == JOptionPane.YES_OPTION) {
-            ((DefaultListModel<String>) list.getModel()).remove(selectedIndex);
+    private static void deleteSelectedTask(JList<String> list) {
+        int selectedIndex = list.getSelectedIndex();
+        if (selectedIndex != -1) {
+            // Show confirmation dialog
+            int response = JOptionPane.showConfirmDialog(frame,
+                    "Are you sure you want to delete this?",
+                    "Confirm Deletion",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE);
+    
+            if (response == JOptionPane.YES_OPTION) {
+                ((DefaultListModel<String>) list.getModel()).remove(selectedIndex);
+                if (list == taskList) {  // If the list is the task list
+                    tasks.remove(selectedIndex);  // Remove the task from the tasks list
+                    try {
+                        DataManagement.saveData(tasks, rewards, pointTotal, historyList, rewardHistoryList);
+                    } catch (IOException e) {
+                        JOptionPane.showMessageDialog(frame, "Error saving data: " + e.getMessage());
+                    }
+                }
+                updateTaskListDisplay();  // Update the task list display
+            }
+        } else {
+            JOptionPane.showMessageDialog(frame, "No task selected for deletion.");
         }
-    } else {
-        JOptionPane.showMessageDialog(frame, "No task selected for deletion.");
     }
-}
 
     private static JPanel createRewardsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -281,8 +320,8 @@ private static void deleteSelectedTask(JList<String> list) {
         JPanel rewardInputPanel = new JPanel(new GridLayout(0, 2));
         JTextField nameField = new JTextField();
         JTextField pointsNeededField = new JTextField();
-        
         JComboBox<String> availabilityOptions = new JComboBox<>(new String[]{"Always Available", "One Time Only"});
+        
         rewardInputPanel.add(new JLabel("Reward Name:"));
         rewardInputPanel.add(nameField);
         rewardInputPanel.add(new JLabel("Points Needed:"));
@@ -292,29 +331,41 @@ private static void deleteSelectedTask(JList<String> list) {
         
         int result = JOptionPane.showConfirmDialog(null, rewardInputPanel, "Add New Reward", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
-            String rewardEntry = nameField.getText() + " - Points Needed: " + pointsNeededField.getText() + " - " + availabilityOptions.getSelectedItem();
-            ((DefaultListModel<String>) rewardList.getModel()).addElement(rewardEntry);
+            String name = nameField.getText();
+            int pointsNeeded = Integer.parseInt(pointsNeededField.getText());
+            String availabilityType = (String) availabilityOptions.getSelectedItem();
+            
+            Reward newReward = new Reward(name, pointsNeeded, availabilityType);
+            rewards.add(newReward);  // Add to the rewards list
+            
+            updateRewardListDisplay();
         }
     }
+    
 
+    private static void updateRewardListDisplay() {
+        DefaultListModel<String> rewardListModel = (DefaultListModel<String>) rewardList.getModel();
+        rewardListModel.clear();
+        for (Reward reward : rewards) {
+            rewardListModel.addElement(reward.displayRewardDetails());
+        }
+    }
     private static void redeemReward() {
         int selectedIndex = rewardList.getSelectedIndex();
         if (selectedIndex != -1) {
-            String reward = ((DefaultListModel<String>) rewardList.getModel()).getElementAt(selectedIndex);
-            String[] parts = reward.split(" - Points Needed: ");
-            int pointsNeeded = Integer.parseInt(parts[1].split(" - ")[0]);
-    
-            if (pointTotal >= pointsNeeded) {
-                pointTotal -= pointsNeeded;
-                pointTotalLabel.setText("Point Total: " + pointTotal);
-                if (reward.contains("Always Available")) {
-                    // Don't remove, just add a copy to the redeemed list
-                    ((DefaultListModel<String>) rewardHistoryList.getModel()).addElement(reward + " - Redeemed: " + new SimpleDateFormat("dd/MM/yyyy").format(new Date()));
-                } else {
-                    // For other types, move to the redeemed list
-                    ((DefaultListModel<String>) rewardList.getModel()).remove(selectedIndex);
-                    ((DefaultListModel<String>) rewardHistoryList.getModel()).addElement(reward + " - Redeemed: " + new SimpleDateFormat("dd/MM/yyyy").format(new Date()));
+            Reward reward = rewards.get(selectedIndex);
+            if (pointTotal.getTotalPoints() >= reward.getPointsNeeded()) {
+                pointTotal.subtractPoints(reward.getPointsNeeded());
+                pointTotalLabel.setText("Point Total: " + pointTotal.getTotalPoints());
+                
+                String redemptionDetails = reward.redeemReward();
+                ((DefaultListModel<String>) rewardHistoryList.getModel()).addElement(redemptionDetails);
+                
+                if (!reward.isAvailable()) {
+                    rewards.remove(selectedIndex);
                 }
+                
+                updateRewardListDisplay();
             } else {
                 JOptionPane.showMessageDialog(frame, "Not enough points to redeem this reward.", "Insufficient Points", JOptionPane.WARNING_MESSAGE);
             }
