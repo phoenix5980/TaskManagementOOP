@@ -11,7 +11,6 @@ public class Task {
     private boolean isRepetitive;
     private String repeatFrequency;
 
-    // Constructor
     public Task(String title, String description, Date dueDate, int points, boolean isRepetitive, String repeatFrequency) {
         this.title = title;
         this.description = description;
@@ -22,7 +21,6 @@ public class Task {
         this.repeatFrequency = repeatFrequency != null ? repeatFrequency : "None";
     }
 
-    // Getters and Setters
     public String getTitle() {
         return title;
     }
@@ -38,6 +36,7 @@ public class Task {
     public void setDescription(String description) {
         this.description = description;
     }
+
 
     public Date getDueDate() {
         return dueDate;

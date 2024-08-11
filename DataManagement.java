@@ -37,7 +37,7 @@ public class DataManagement {
         DefaultListModel<String> historyModel = new DefaultListModel<>();
         DefaultListModel<String> rewardModel = new DefaultListModel<>();
         DefaultListModel<String> rewardHistoryModel = new DefaultListModel<>();
-        taskModel.addElement("Review - Deadline: " + getDefaultDate() + " - Points: 10 - Repeats: Weekly");
+        taskModel.addElement("Weekly Review - Deadline: " + getDefaultDate() + " - Points: 10 - Repeats: Weekly");
         taskModel.addElement("Assignment-5 - Deadline: 12/08/2024 23:59:00 - Points: 4 - Repeats: None");
         taskModel.addElement("Final Exam - Deadline: 15/08/2024 19:00:00 - Points: 100 - Repeats: None");
         historyModel.addElement("Assignment-1 - Deadline: 10/06/2024 23:59:00 - Points: 4");

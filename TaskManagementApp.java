@@ -175,21 +175,28 @@ public class TaskManagementApp {
                 Task completedTask = tasks.get(selectedIndex);
                 // Check if the task is repetitive and ask for confirmation
                 if (completedTask.isRepetitive()) {
+                    System.out.println("Task is repetitive");
                     int response = JOptionPane.showConfirmDialog(frame, "Keep this task repeating?", "Repetitive Task", JOptionPane.YES_NO_OPTION);
                     if (response == JOptionPane.YES_OPTION) {
                         // Only modify deadline part
+
                         Date nextDate = calculateNextDate(dateFormat.parse(task.split(" - Deadline: ")[1].split(" - ")[0]), repeats);
                         String newDeadline = " - Deadline: " + dateFormat.format(nextDate);
                         String newTask = task.substring(0, task.indexOf(" - Deadline:")) + newDeadline + task.substring(task.indexOf(" - Points:"));
-                        ((DefaultListModel<String>) taskList.getModel()).addElement(newTask);
+                        ((DefaultListModel<String>) taskList.getModel()).set(selectedIndex, newTask);
                     }else{
-                        tasks.remove(completedTask);
+                        tasks.remove(selectedIndex);
+                        ((DefaultListModel<String>) taskList.getModel()).remove(selectedIndex);
+                        updateTaskListDisplay(); 
                     }
                 }else{
-                    tasks.remove(completedTask);
+                    System.out.println("Task is not repetitive");
+                    tasks.remove(selectedIndex);
+                    ((DefaultListModel<String>) taskList.getModel()).remove(selectedIndex);
+                    updateTaskListDisplay(); 
                 }
-    
-                ((DefaultListModel<String>) taskList.getModel()).remove(selectedIndex);
+
+
             } else {
                 throw new NumberFormatException("Points format incorrect or missing repetition info");
             }
