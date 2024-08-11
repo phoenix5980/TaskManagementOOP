@@ -1,2 +1,1 @@
-Task 1 - Deadline: Tomorrow - Points: 10
-Task 2 - Deadline: Next Week - Points: 20
+Example Task - Deadline: 10/08/2024 20:17:00 - Points: 10 - Repeats: Daily
